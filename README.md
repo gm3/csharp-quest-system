@@ -1,8 +1,5 @@
 ## Quest Manager System
 
-![image](https://github.com/gm3/csharp-quest-system/assets/7612104/ff5df8de-a33c-4e97-9171-0f374805d8c6)
-
-
 This Quest Manager System provides an easy and flexible way to create and manage quests and acts in your game. It includes built-in features to handle a variety of quest types, actions, and rewards. The main components of this system are explained in detail below.
 
 ### Classes and Fields
@@ -480,3 +477,513 @@ public class QuestManager : MonoBehaviour
 
 ```
 
+## Unreal WIP
+
+```cpp
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Actor.h"
+
+// Reward class to handle different types of rewards in the game
+UENUM(BlueprintType)
+enum class ERewardType : uint8
+{
+	Gold,
+	Item,
+	Experience
+};
+
+USTRUCT(BlueprintType)
+struct FReward
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	ERewardType RewardType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Item;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Quantity;
+
+	// Function to claim a reward
+	UFUNCTION(BlueprintCallable)
+	void Claim()
+	{
+		UE_LOG(LogTemp, Warning, TEXT("Claimed %d %s. Item: %s"), Quantity, GetRewardTypeAsString(), *Item);
+	}
+
+	FString GetRewardTypeAsString() const
+	{
+		static const UEnum* EnumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("ERewardType"), true);
+		if (!EnumPtr)
+		{
+			return FString();
+		}
+		return EnumPtr->GetNameStringByIndex(static_cast<int32>(RewardType));
+	}
+};
+
+// QuestAction class to handle different actions required to complete a quest
+UENUM(BlueprintType)
+enum class EActionType : uint8
+{
+	FindItem,
+	BeatBoss,
+	TalkToNPC,
+	BuyItem
+};
+
+USTRUCT(BlueprintType)
+struct FQuestAction
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EActionType ActionType;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Title;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Description;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Hint;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Target;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 Quantity;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool IsComplete;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform Position;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	int32 QuantityCompleted;
+
+	// Function to check if a quest action is completed
+	bool CheckActionComplete(const FString& InTarget, int32 InQuantity)
+	{
+		if (Target == InTarget)
+		{
+			QuantityCompleted += InQuantity;
+			if (QuantityCompleted >= Quantity)
+			{
+				IsComplete = true;
+				UE_LOG(LogTemp, Warning, TEXT("QuestAction %s complete."), GetActionTypeAsString());
+			}
+		}
+		return IsComplete;
+	}
+
+	FString GetActionTypeAsString() const
+	{
+		static const UEnum* EnumPtr = FindObject<UEnum>(ANY_PACKAGE, TEXT("EActionType"), true);
+		if (!EnumPtr)
+		{
+			return FString();
+		}
+		return EnumPtr->GetNameStringByIndex(static_cast<int32>(ActionType));
+	}
+};
+
+// Main Quest class to handle all the properties and actions of a quest
+UENUM(BlueprintType)
+enum class EQuestType : uint8
+{
+	MainQuest,
+	SideQuest
+};
+
+USTRUCT(BlueprintType)
+struct FQuest
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	EQuestType Type;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Title;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Description;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool IsFailable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool IsSkippable;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool IsFailed;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FString> Prerequisites;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FTransform Position;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FQuestAction> Actions;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FReward> Rewards;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	bool IsTimedQuest;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	float Duration;
+
+private:
+	float StartTime;
+
+public:
+	// Property to check if all quest actions are complete
+	bool IsComplete() const
+	{
+		for (const FQuestAction& Action : Actions)
+		{
+			if (!Action.IsComplete)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Property to get the progress of the quest
+	float GetProgress() const
+	{
+		const int32 NumActions = Actions.Num();
+		if (NumActions == 0)
+		{
+			return 0.0f;
+		}
+		int32 NumCompletedActions = 0;
+		for (const FQuestAction& Action : Actions)
+		{
+			if (Action.IsComplete)
+			{
+				NumCompletedActions++;
+			}
+		}
+		return static_cast<float>(NumCompletedActions) / NumActions;
+	}
+
+	// Function to start a quest
+	void StartQuest(AActor* Owner)
+	{
+		if (IsTimedQuest)
+		{
+			StartTimedQuest(Owner);
+		}
+	}
+
+	// Function to start a timed quest
+	void StartTimedQuest(AActor* Owner)
+	{
+		Owner->GetWorldTimerManager().SetTimerForNextTick(FTimerDelegate::CreateUObject(this, &FQuest::QuestTimer));
+	}
+
+	// Function to check if a timed quest has timed out
+	bool IsTimedOut() const
+	{
+		return IsTimedQuest && (FPlatformTime::Seconds() - StartTime) > Duration;
+	}
+
+	// Function to fail a quest
+	void FailQuest(const FString& Reason)
+	{
+		if (IsFailable)
+		{
+			IsFailed = true;
+			UE_LOG(LogTemp, Warning, TEXT("Quest %s failed. Reason: %s"), *Name, *Reason);
+		}
+	}
+
+	// Function to skip a quest
+	void SkipQuest()
+	{
+		if (IsSkippable)
+		{
+			for (FQuestAction& Action : Actions)
+			{
+				Action.IsComplete = true;
+			}
+			UE_LOG(LogTemp, Warning, TEXT("Quest %s skipped."), *Name);
+		}
+	}
+
+private:
+	void QuestTimer()
+	{
+		FailQuest("Time ran out.");
+		UE_LOG(LogTemp, Warning, TEXT("Quest %s has timed out."), *Name);
+	}
+};
+
+// Act class to group related quests together
+USTRUCT(BlueprintType)
+struct FAct
+{
+	GENERATED_BODY()
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FString Name;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FQuest> Quests;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FReward> Rewards;
+
+	// Property to check if all quests in the act are complete
+	bool IsComplete() const
+	{
+		for (const FQuest& Quest : Quests)
+		{
+			if (!Quest.IsComplete())
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Property to get the progress of the act
+	float GetProgress() const
+	{
+		const int32 NumQuests = Quests.Num();
+		if (NumQuests == 0)
+		{
+			return 0.0f;
+		}
+		int32 NumCompletedQuests = 0;
+		for (const FQuest& Quest : Quests)
+		{
+			if (Quest.IsComplete())
+			{
+				NumCompletedQuests++;
+			}
+		}
+		return static_cast<float>(NumCompletedQuests) / NumQuests;
+	}
+};
+
+// Main QuestManager class to handle all quest and act operations in the game
+UCLASS()
+class AQuestManager : public AActor
+{
+	GENERATED_BODY()
+
+public:
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FAct> Acts;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	TArray<FQuest> FailedQuests;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	FQuest CurrentQuest;
+
+	// Event delegate for quest toggling
+	DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FQuestToggledDelegate, const FQuest&, Quest);
+	UPROPERTY(BlueprintAssignable)
+	FQuestToggledDelegate OnQuestToggled;
+
+	// Function to fail the current quest
+	UFUNCTION(BlueprintCallable)
+	void FailCurrentQuest(const FString& Reason)
+	{
+		if (CurrentQuest.IsFailed)
+		{
+			CurrentQuest.FailQuest(Reason);
+			CurrentQuest = FQuest();
+		}
+	}
+
+	// Function to skip the current quest
+	UFUNCTION(BlueprintCallable)
+	void SkipCurrentQuest()
+	{
+		if (CurrentQuest.IsSkippable)
+		{
+			CurrentQuest.SkipQuest();
+			CurrentQuest = FQuest();
+		}
+	}
+
+	// Function to check if the prerequisites for a quest are met
+	UFUNCTION(BlueprintCallable)
+	bool ArePrerequisitesMet(const FQuest& Quest)
+	{
+		for (const FString& Prerequisite : Quest.Prerequisites)
+		{
+			const FQuest* PrerequisiteQuest = FindQuestByName(Prerequisite);
+			if (PrerequisiteQuest == nullptr)
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Prerequisite quest %s not found in any act."), *Prerequisite);
+				return false;
+			}
+			if (!PrerequisiteQuest->IsComplete())
+			{
+				UE_LOG(LogTemp, Warning, TEXT("Prerequisite quest %s not complete."), *Prerequisite);
+				return false;
+			}
+		}
+		return true;
+	}
+
+	// Function to toggle the status of a quest
+	UFUNCTION(BlueprintCallable)
+	void ToggleQuest(const FString& ActName, const FString& QuestName)
+	{
+		FAct* Act = FindActByName(ActName);
+		if (Act)
+		{
+			FQuest* Quest = FindQuestByNameInAct(*Act, QuestName);
+			if (Quest)
+			{
+				for (FQuestAction& Action : Quest->Actions)
+				{
+					Action.IsComplete = !Action.IsComplete;
+				}
+				UE_LOG(LogTemp, Warning, TEXT("Toggled quest %s to %d"), *QuestName, Quest->IsComplete());
+				OnQuestToggled.Broadcast(*Quest);
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("No quest named %s found in act %s."), *QuestName, *ActName);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No act named %s found."), *ActName);
+		}
+	}
+
+	// Function to start a quest
+	UFUNCTION(BlueprintCallable)
+	void StartQuest(const FString& ActName, const FString& QuestName)
+	{
+		FAct* Act = FindActByName(ActName);
+		if (Act)
+		{
+			FQuest* Quest = FindQuestByNameInAct(*Act, QuestName);
+			if (Quest)
+			{
+				if (ArePrerequisitesMet(*Quest))
+				{
+					Quest->StartQuest(this);
+					CurrentQuest = *Quest;
+					UE_LOG(LogTemp, Warning, TEXT("Started quest %s in act %s."), *QuestName, *ActName);
+				}
+				else
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Prerequisites for quest %s not met."), *QuestName);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("No quest named %s found in act %s."), *QuestName, *ActName);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No act named %s found."), *ActName);
+		}
+	}
+
+	// Function to complete an action of the current quest
+	UFUNCTION(BlueprintCallable)
+	void CompleteAction(const FString& ActionTarget, int32 Quantity)
+	{
+		if (CurrentQuest.IsFailable)
+		{
+			FQuestAction* Action = FindActionByTarget(CurrentQuest, ActionTarget);
+			if (Action)
+			{
+				if (Action->CheckActionComplete(ActionTarget, Quantity))
+				{
+					UE_LOG(LogTemp, Warning, TEXT("Action %s completed for target %s."), *Action->GetActionTypeAsString(), *ActionTarget);
+				}
+			}
+			else
+			{
+				UE_LOG(LogTemp, Warning, TEXT("No action with target %s found in current quest."), *ActionTarget);
+			}
+		}
+		else
+		{
+			UE_LOG(LogTemp, Warning, TEXT("No current quest active."));
+		}
+	}
+
+private:
+	// Helper function to find an act by name
+	FAct* FindActByName(const FString& ActName)
+	{
+		for (FAct& Act : Acts)
+		{
+			if (Act.Name == ActName)
+			{
+				return &Act;
+			}
+		}
+		return nullptr;
+	}
+
+	// Helper function to find a quest by name in an act
+	FQuest* FindQuestByNameInAct(const FAct& Act, const FString& QuestName)
+	{
+		for (FQuest& Quest : Act.Quests)
+		{
+			if (Quest.Name == QuestName)
+			{
+				return &Quest;
+			}
+		}
+		return nullptr;
+	}
+
+	// Helper function to find a quest by name
+	FQuest* FindQuestByName(const FString& QuestName)
+	{
+		for (FAct& Act : Acts)
+		{
+			FQuest* Quest = FindQuestByNameInAct(Act, QuestName);
+			if (Quest)
+			{
+				return Quest;
+			}
+		}
+		return nullptr;
+	}
+
+	// Helper function to find an action by target in a quest
+	FQuestAction* FindActionByTarget(const FQuest& Quest, const FString& ActionTarget)
+	{
+		for (FQuestAction& Action : Quest.Actions)
+		{
+			if (Action.Target == ActionTarget)
+			{
+				return &Action;
+			}
+		}
+		return nullptr;
+	}
+};
+
+```
