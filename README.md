@@ -1,6 +1,59 @@
-# Quest System
+## Quest Manager System
 
-This script is a **Quest System** that includes various classes and methods for managing quests in a game. It can handle different types of quests, quest actions, rewards, and even group quests into larger narrative chunks called "Acts".
+This Quest Manager System provides an easy and flexible way to create and manage quests and acts in your game. It includes built-in features to handle a variety of quest types, actions, and rewards. The main components of this system are explained in detail below.
+
+### Classes and Fields
+
+#### Reward
+
+This class handles different types of rewards in the game.
+
+- `RewardType`: Enum with types of rewards: Gold, Item, Experience.
+- `item`: Name of the item, if the reward is an item.
+- `quantity`: Quantity of the reward.
+- `Claim()`: Function to claim a reward.
+
+#### QuestAction
+
+This class handles different actions required to complete a quest.
+
+- `ActionType`: Enum with types of actions: FindItem, BeatBoss, TalkToNPC, BuyItem.
+- `title`, `description`, `hint`, `target`, `quantity`: Various properties of an action.
+- `isComplete`: Indicates whether the action is complete.
+- `CheckActionComplete()`: Function to check if an action is complete.
+
+#### Quest
+
+This class handles all the properties and actions of a quest.
+
+- `QuestType`: Enum with types of quests: MainQuest, SideQuest.
+- `name`, `title`, `description`: Various properties of a quest.
+- `isFailable`, `isSkippable`, `isFailed`: Indicates various states of a quest.
+- `prerequisites`: Prerequisite quests that must be completed before this quest can be started.
+- `actions`: List of actions required to complete the quest.
+- `rewards`: List of rewards for completing the quest.
+- `isTimedQuest`, `duration`: Properties for timed quests.
+- `IsComplete`, `Progress`: Properties to check if a quest is complete and to get the progress of the quest.
+- `StartQuest()`, `FailQuest()`, `SkipQuest()`, `IsTimedOut()`: Various methods to manage a quest.
+
+#### Act
+
+This class groups related quests together.
+
+- `name`: Name of the act.
+- `quests`: List of quests in the act.
+- `rewards`: List of rewards for completing all quests in the act.
+- `IsComplete`, `Progress`: Properties to check if an act is complete and to get the progress of the act.
+
+#### QuestManager
+
+This class handles all quest and act operations in the game.
+
+- `acts`: List of acts in the game.
+- `failedQuests`: List of failed quests.
+- `currentQuest`: The quest that is currently active.
+- `MainQuestProgress`, `SideQuestProgress`: Properties to get the progress of all main quests and side quests.
+- `FailCurrentQuest()`, `SkipCurrentQuest()`, `ArePrerequisitesMet()`, `ToggleQuest()`, `StartQuest()`, `CompleteAction()`: Various methods to manage quests.
 
 ## Main Classes
 
@@ -50,6 +103,28 @@ This method checks whether the prerequisites for a quest are met.
 
 This method toggles the status of a quest given the name of the act and the name of the quest.
 
+### Implementation Guide
+
+1. Define your rewards: Create instances of the `Reward` class and define their type, item (if applicable), and quantity.
+
+2. Define your actions: Create instances of the `QuestAction` class and define their type, title, description, hint, target, quantity, and position.
+
+3. Define your quests: Create instances of the `Quest` class and define their type, name, title, description, failable/skippable status, prerequisites (if any), position, actions, rewards, timed status, and duration (if it's a timed quest). Then, you can use the provided methods to manage the quests.
+
+4. Group your quests into acts: Create instances of the `Act` class and define their name and the quests they contain. You can also define rewards for completing all quests in the act.
+
+5. Manage your quests and acts: Finally, use the `QuestManager` class to manage all the quests and acts in your game. The class provides various methods to check the progress of quests, fail or skip quests, check prerequisites, toggle quests, start quests, and complete actions.
+
+### How to Use
+
+- Start a quest: Call the `StartQuest` method with the act and quest name as arguments.
+- Complete an action: Call the `CompleteAction` method with the action target and quantity as arguments.
+- Toggle the status of a quest: Call the `ToggleQuest` method with the act and quest name as arguments.
+- Check if prerequisites for a quest are met: Call the `ArePrerequisitesMet` method with the quest as an argument.
+- Skip or fail the current quest: Call the `SkipCurrentQuest` or `FailCurrentQuest` method.
+- Check the progress of all main quests or side quests: Access the `MainQuestProgress` or `SideQuestProgress` property.
+
+
 ## Usage
 
 You would typically use the `QuestManager` class to manage your quests. Here's a brief tutorial:
@@ -68,6 +143,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEngine;
+using System.Collections;
 
 // Reward class to handle different types of rewards in the game
 [System.Serializable]
@@ -100,14 +176,19 @@ public class QuestAction
     public int quantity;
     public bool isComplete;
     public Transform position;
+    public int quantityCompleted;
 
     // Function to check if a quest action is completed
     public bool CheckActionComplete(string target, int quantity)
     {
-        if (this.target == target && this.quantity == quantity)
+        if (this.target == target)
         {
-            isComplete = true;
-            Debug.Log($"QuestAction {actionType} complete.");
+            quantityCompleted += quantity;
+            if (quantityCompleted >= this.quantity)
+            {
+                isComplete = true;
+                Debug.Log($"QuestAction {actionType} complete.");
+            }
         }
         return isComplete;
     }
@@ -141,12 +222,19 @@ public class Quest
     public float Progress => actions.Count == 0 ? 0 : (float)actions.Count(a => a.isComplete) / actions.Count;
 
     // Function to start a quest
-    public void StartQuest()
+    // Function to start a quest
+    public void StartQuest(MonoBehaviour behaviour)
     {
         if (isTimedQuest)
         {
-            startTime = Time.time;
+            StartTimedQuest(behaviour);
         }
+    }
+
+    // Function to start a timed quest
+    private void StartTimedQuest(MonoBehaviour behaviour)
+    {
+        behaviour.StartCoroutine(QuestTimer());
     }
 
     // Function to check if a timed quest has timed out
@@ -174,6 +262,17 @@ public class Quest
             Debug.Log($"Quest {name} skipped.");
         }
     }
+
+
+
+
+    private IEnumerator QuestTimer()
+    {
+        yield return new WaitForSeconds(duration);
+        FailQuest("Time ran out.");
+        Debug.Log($"Quest {name} has timed out.");
+    }
+
 }
 
 // Act class to group related quests together
@@ -195,6 +294,7 @@ public class Act
 public class QuestManager : MonoBehaviour
 {
     public List<Act> acts = new List<Act>();
+    public List<Quest> failedQuests = new List<Quest>();
     public Quest currentQuest;
 
     public event Action<Quest> OnQuestToggled;
@@ -315,7 +415,6 @@ public class QuestManager : MonoBehaviour
         }
     }
 
-    // Function to start a quest
     public void StartQuest(string actName, string questName)
     {
         var act = acts.Find(a => a.name == actName);
@@ -326,7 +425,7 @@ public class QuestManager : MonoBehaviour
             {
                 if (ArePrerequisitesMet(quest))
                 {
-                    quest.StartQuest();
+                    quest.StartQuest(this);  // Passing in QuestManager as MonoBehaviour
                     currentQuest = quest;
                     Debug.Log($"Started quest {questName} in act {actName}.");
                 }
@@ -345,6 +444,7 @@ public class QuestManager : MonoBehaviour
             Debug.Log($"No act named {actName} found.");
         }
     }
+
 
     // Function to complete an action of the current quest
     public void CompleteAction(string actionTarget, int quantity)
@@ -369,7 +469,11 @@ public class QuestManager : MonoBehaviour
             Debug.Log($"No current quest active.");
         }
     }
+
+    
+
 }
+
 
 ```
 
