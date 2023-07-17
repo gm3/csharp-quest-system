@@ -987,3 +987,281 @@ private:
 };
 
 ```
+
+## Three.js WIP
+
+```javascript=
+// Reward class to handle different types of rewards in the game
+class Reward {
+  constructor() {
+    this.rewardType;
+    this.item;
+    this.quantity;
+  }
+
+  // Function to claim a reward
+  claim() {
+    console.log(`Claimed ${this.quantity} ${this.rewardType}. Item: ${this.item}`);
+  }
+}
+
+// QuestAction class to handle different actions required to complete a quest
+class QuestAction {
+  constructor() {
+    this.actionType;
+    this.title;
+    this.description;
+    this.hint;
+    this.target;
+    this.quantity;
+    this.isComplete;
+    this.position;
+    this.quantityCompleted;
+  }
+
+  // Function to check if a quest action is completed
+  checkActionComplete(target, quantity) {
+    if (this.target === target) {
+      this.quantityCompleted += quantity;
+      if (this.quantityCompleted >= this.quantity) {
+        this.isComplete = true;
+        console.log(`QuestAction ${this.actionType} complete.`);
+      }
+    }
+    return this.isComplete;
+  }
+}
+
+// Main Quest class to handle all the properties and actions of a quest
+class Quest {
+  constructor() {
+    this.type;
+    this.name;
+    this.title;
+    this.description;
+    this.isFailable;
+    this.isSkippable;
+    this.isFailed;
+    this.prerequisites;
+    this.position;
+    this.actions;
+    this.rewards;
+    this.isTimedQuest;
+    this.duration;
+    this.startTime;
+  }
+
+  // Property to check if all quest actions are complete
+  get isComplete() {
+    return this.actions.every(a => a.isComplete);
+  }
+
+  // Property to get the progress of the quest
+  get progress() {
+    return this.actions.length === 0 ? 0 : this.actions.filter(a => a.isComplete).length / this.actions.length;
+  }
+
+  // Function to start a quest
+  startQuest(behaviour) {
+    if (this.isTimedQuest) {
+      this.startTimedQuest(behaviour);
+    }
+  }
+
+  // Function to start a timed quest
+  startTimedQuest(behaviour) {
+    // Implement the timer logic using setTimeout or setInterval in JavaScript
+    console.log('Starting timed quest...');
+  }
+
+  // Function to check if a timed quest has timed out
+  isTimedOut() {
+    return this.isTimedQuest && Date.now() - this.startTime > this.duration * 1000;
+  }
+
+  // Function to fail a quest
+  failQuest(reason) {
+    if (this.isFailable) {
+      this.isFailed = true;
+      console.log(`Quest ${this.name} failed. Reason: ${reason}`);
+    }
+  }
+
+  // Function to skip a quest
+  skipQuest() {
+    if (this.isSkippable) {
+      this.actions.forEach(a => (a.isComplete = true));
+      console.log(`Quest ${this.name} skipped.`);
+    }
+  }
+
+  // Function to handle quest timer
+  questTimer() {
+    // Implement the timer logic for the quest using setTimeout or setInterval in JavaScript
+    console.log(`Quest ${this.name} has timed out.`);
+  }
+}
+
+// Act class to group related quests together
+class Act {
+  constructor() {
+    this.name;
+    this.quests;
+    this.rewards;
+  }
+
+  // Property to check if all quests in the act are complete
+  get isComplete() {
+    return this.quests.every(quest => quest.isComplete);
+  }
+
+  // Property to get the progress of the act
+  get progress() {
+    return this.quests.length === 0 ? 0 : this.quests.filter(quest => quest.isComplete).length / this.quests.length;
+  }
+}
+
+// QuestManager class to handle all quest and act operations in the game
+class QuestManager {
+  constructor() {
+    this.acts = [];
+    this.failedQuests = [];
+    this.currentQuest;
+  }
+
+  // Initialization function
+  init() {
+    // Initialization code here
+  }
+
+  // Update function
+  update() {
+    // Check for end of game
+    if (this.acts.every(a => a.isComplete)) {
+      console.log('All acts complete. The game ends.');
+    }
+
+    // Check if the current quest has timed out or failed
+    if (this.currentQuest) {
+      if (this.currentQuest.isTimedOut()) {
+        this.currentQuest.failQuest('Time ran out.');
+        console.log(`Quest ${this.currentQuest.name} has timed out.`);
+      } else if (this.currentQuest.isFailed) {
+        console.log(`Quest ${this.currentQuest.name} has failed.`);
+        this.currentQuest = null;
+      }
+    }
+  }
+
+  // Property to get the progress of all main quests
+  get mainQuestProgress() {
+    const mainQuests = this.acts
+      .flatMap(a => a.quests)
+      .filter(q => q.type === Quest.QuestType.MainQuest);
+    return mainQuests.length === 0 ? 0 : mainQuests.filter(q => q.isComplete).length / mainQuests.length;
+  }
+
+  // Property to get the progress of all side quests
+  get sideQuestProgress() {
+    const sideQuests = this.acts
+      .flatMap(a => a.quests)
+      .filter(q => q.type === Quest.QuestType.SideQuest);
+    return sideQuests.length === 0 ? 0 : sideQuests.filter(q => q.isComplete).length / sideQuests.length;
+  }
+
+  // Function to fail the current quest
+  failCurrentQuest(reason) {
+    if (this.currentQuest) {
+      this.currentQuest.failQuest(reason);
+      this.currentQuest = null;
+    }
+  }
+
+  // Function to skip the current quest
+  skipCurrentQuest() {
+    if (this.currentQuest) {
+      this.currentQuest.skipQuest();
+      this.currentQuest = null;
+    }
+  }
+
+  // Function to check if the prerequisites for a quest are met
+  arePrerequisitesMet(quest) {
+    for (const prereq of quest.prerequisites) {
+      const act = this.acts.find(a => a.quests.some(q => q.name === prereq));
+      if (!act) {
+        console.log(`Prerequisite quest ${prereq} not found in any act.`);
+        return false;
+      }
+
+      const prereqQuest = act.quests.find(q => q.name === prereq);
+      if (!prereqQuest.isComplete) {
+        console.log(`Prerequisite quest ${prereq} not complete.`);
+        return false;
+      }
+    }
+
+    return true;
+  }
+
+  // Function to toggle the status of a quest
+  toggleQuest(actName, questName) {
+    const act = this.acts.find(a => a.name === actName);
+    if (act) {
+      const quest = act.quests.find(q => q.name === questName);
+      if (quest) {
+        quest.actions.forEach(a => (a.isComplete = !a.isComplete));
+        console.log(`Toggled quest ${questName} to ${quest.isComplete}`);
+        this.onQuestToggled(quest);
+      } else {
+        console.log(`No quest named ${questName} found in act ${actName}.`);
+      }
+    } else {
+      console.log(`No act named ${actName} found.`);
+    }
+  }
+
+  // Function to start a quest
+  startQuest(actName, questName) {
+    const act = this.acts.find(a => a.name === actName);
+    if (act) {
+      const quest = act.quests.find(q => q.name === questName);
+      if (quest) {
+        if (this.arePrerequisitesMet(quest)) {
+          quest.startQuest(this); // Passing in QuestManager as the behaviour
+          this.currentQuest = quest;
+          console.log(`Started quest ${questName} in act ${actName}.`);
+        } else {
+          console.log(`Prerequisites for quest ${questName} not met.`);
+        }
+      } else {
+        console.log(`No quest named ${questName} found in act ${actName}.`);
+      }
+    } else {
+      console.log(`No act named ${actName} found.`);
+    }
+  }
+
+  // Function to complete an action of the current quest
+  completeAction(actionTarget, quantity) {
+    if (this.currentQuest) {
+      const action = this.currentQuest.actions.find(a => a.target === actionTarget);
+      if (action) {
+        if (action.checkActionComplete(actionTarget, quantity)) {
+          console.log(`Action ${action.actionType} completed for target ${actionTarget}.`);
+        }
+      } else {
+        console.log(`No action with target ${actionTarget} found in the current quest.`);
+      }
+    } else {
+      console.log('No current quest active.');
+    }
+  }
+
+  // Event handler for quest toggling
+  onQuestToggled(quest) {
+    console.log(`Quest ${quest.name} toggled.`);
+  }
+}
+
+```
